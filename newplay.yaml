@@ -1,0 +1,67 @@
+---
+- name: Deploying apps
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: apt update
+      apt:
+        update_cache: yes
+
+    - name: install nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: clone git repository
+      git:
+        repo: 'https://github.com/michowski/tetris-light.git'
+        dest: /home/ubuntu/tetris-light
+        force: yes
+
+    - name: copy the HTML file to the right path
+      copy:
+        src: '/home/ubuntu/tetris-light/index-source.html'
+        dest: '/var/www/html/index-source.html'
+        owner: www-data
+        group: www-data
+        mode: '0644'
+        remote_src: yes
+
+    - name: Copy Nginx configuration file
+      copy:
+        src: '/Users/everestode/Desktop/Ansible playbooks/tetris.conf'
+        dest: '/etc/nginx/sites-available/tetris.conf'
+        owner: root
+        group: root
+        mode: '0644'
+      notify:
+        - reload nginx
+
+    - name: Enable Nginx site
+      file:
+        src: '/etc/nginx/sites-available/tetris.conf'
+        dest: '/etc/nginx/sites-enabled/tetris.conf'
+        state: link
+        force: yes
+      notify:
+        - reload nginx
+
+    - name: Remove default Nginx host configuration
+      file:
+        path: '/etc/nginx/sites-enabled/default'
+        state: absent
+      notify:
+        - reload nginx
+
+    - name: Allow all access to tcp port 80
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+  handlers:
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded

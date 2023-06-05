@@ -1,0 +1,70 @@
+---
+- name: Hardening my server and deploying it
+  hosts: all
+  become: yes
+
+  tasks:
+  - name: Upgrade and install unattended-upgrades
+    apt:
+      name: unattended-upgrades
+      update_cache: yes
+
+  - name: Enable unattended upgrades
+    expect:
+      command: dpkg-reconfigure unattended-upgrades
+      responses:
+        'Automatically install and update stable updates?': 'yes'
+
+  - name: Create user
+    user:
+      name: everest
+      shell: /bin/bash
+
+  - name: Set password for user
+    command: "echo 'Everest' | passwd --stdin everest"
+    
+  - name: add user to root and change the root to everest
+    command: usermod -aG sudo everest && su -everest
+
+  - name: Set SSH protocol to 2
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: '^#?Protocol'
+      line: 'Protocol 2'
+      state: present
+    notify: restart sshd
+
+  - name: Ensure root login is disabled and allow user 'everest'
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: '^PermitRootLogin'
+      line: |
+        PermitRootLogin no
+        AllowUsers everest
+      state: present
+    notify: restart sshd
+
+  - name: Disable PasswordAuthentication
+    lineinfile:
+      path: /etc/ssh/sshd_config
+      state: present
+      regexp: "^PasswordAuthentication"
+      line: "PasswordAuthentication no"
+    notify: restart sshd
+
+  - name: Enable firewall and allow SSH
+    ufw:
+      rule: allow
+      port: 22
+    notify: restart ufw
+
+  handlers: 
+    - name: restart ufw
+      service:
+        name: ufw
+        state: restarted
+
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted 
